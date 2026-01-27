@@ -1,0 +1,13 @@
+# Secrets (આ ક્યારેય અપલોડ ના થવું જોઈએ)
+.env
+credentials.py
+
+# Python System Files
+__pycache__/
+*.pyc
+venv/
+.vscode/
+
+# Logs & Data
+logs/
+data/raw/

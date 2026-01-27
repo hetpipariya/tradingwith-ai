@@ -1,0 +1,42 @@
+import joblib
+import numpy as np
+import pandas as pd
+from credentials import MODEL_PATH
+
+class PricePredictor:
+    """Inference engine only. Separation of training and prediction."""
+    
+    def __init__(self):
+        self.model = self.load_model()
+        self.feature_cols = ['ema_9', 'ema_21', 'rsi', 'atr', 'vwap', 'breakout', 'vol_confirm']
+
+    def load_model(self):
+        try:
+            return joblib.load(MODEL_PATH)
+        except:
+            return None
+
+    def predict_next_bias(self, df: pd.DataFrame):
+        if self.model is None or df.empty:
+            return {"direction": "NEUTRAL", "confidence": 0.0, "target_price": 0.0}
+        
+        # Take the most recent data point
+        latest_features = df[self.feature_cols].tail(1)
+        
+        # Prediction Logic
+        prob = self.model.predict_proba(latest_features)[0]
+        prediction = self.model.predict(latest_features)[0]
+        
+        direction = "UP" if prediction == 1 else "DOWN"
+        confidence = prob[1] if prediction == 1 else prob[0]
+        
+        # Simple ATR-based target calculation
+        current_price = df['close'].iloc[-1]
+        atr = df['atr'].iloc[-1]
+        target = current_price + (atr * 1.5) if direction == "UP" else current_price - (atr * 1.5)
+        
+        return {
+            "direction": direction,
+            "confidence": round(float(confidence), 2),
+            "target_price": round(float(target), 2)
+        }
