@@ -1,56 +1,47 @@
-import joblib
-import numpy as np
 import pandas as pd
-import os
-
-# --- PATH CONFIGURATION ---
-# credentials.py ની જરૂર નથી, આપણે પાથ અહીં જ બનાવી લઈએ
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MODEL_PATH = os.path.join(BASE_DIR, "models", "price_model.pkl")
 
 class PricePredictor:
-    """Inference engine only. Separation of training and prediction."""
-    
-    def __init__(self):
-        self.model = self.load_model()
-        self.feature_cols = ['ema_9', 'ema_21', 'rsi', 'atr', 'vwap', 'breakout', 'vol_confirm']
-
-    def load_model(self):
-        try:
-            return joblib.load(MODEL_PATH)
-        except FileNotFoundError:
-            # જો મોડેલ ના મળે તો (Cloud પર કદાચ ટ્રેન ના થયું હોય)
-            return None
-        except Exception as e:
-            print(f"Error loading model: {e}")
-            return None
-
-    def predict_next_bias(self, df: pd.DataFrame):
-        # જો મોડેલ ના હોય અથવા ડેટા ના હોય તો Safe Return
-        if self.model is None or df.empty:
+    def predict_next_bias(self, df):
+        if df.empty:
             return {"direction": "NEUTRAL", "confidence": 0.0, "target_price": 0.0}
+            
+        last_row = df.iloc[-1]
         
-        try:
-            # Take the most recent data point
-            latest_features = df[self.feature_cols].tail(1)
+        # Logic Variables
+        ema_9 = last_row['ema_9']
+        ema_50 = last_row['ema_50']
+        rsi = last_row['rsi']
+        close = last_row['close']
+        
+        score = 0
+        direction = "NEUTRAL"
+        
+        # --- BUY LOGIC ---
+        if ema_9 > ema_50: score += 1      # Golden Cross
+        if rsi > 40 and rsi < 70: score += 1 # Healthy Momentum
+        if close > last_row['open']: score += 1 # Green Candle
+        
+        # --- SELL LOGIC ---
+        if ema_9 < ema_50: score -= 1      # Death Cross
+        if rsi > 70: score -= 1            # Overbought
+        if close < last_row['open']: score -= 1 # Red Candle
+        
+        # Decision
+        if score >= 2:
+            direction = "UP"
+            confidence = 0.85
+            target = last_row['resistance']
+        elif score <= -2:
+            direction = "DOWN"
+            confidence = 0.85
+            target = last_row['support']
+        else:
+            direction = "SIDEWAYS"
+            confidence = 0.40
+            target = close
             
-            # Prediction Logic
-            prob = self.model.predict_proba(latest_features)[0]
-            prediction = self.model.predict(latest_features)[0]
-            
-            direction = "UP" if prediction == 1 else "DOWN"
-            confidence = prob[1] if prediction == 1 else prob[0]
-            
-            # Simple ATR-based target calculation
-            current_price = df['close'].iloc[-1]
-            atr = df['atr'].iloc[-1]
-            target = current_price + (atr * 1.5) if direction == "UP" else current_price - (atr * 1.5)
-            
-            return {
-                "direction": direction,
-                "confidence": round(float(confidence), 2),
-                "target_price": round(float(target), 2)
-            }
-        except Exception as e:
-            print(f"Prediction Error: {e}")
-            return {"direction": "NEUTRAL", "confidence": 0.0, "target_price": 0.0}
+        return {
+            "direction": direction,
+            "confidence": confidence,
+            "target_price": round(target, 2)
+        }
