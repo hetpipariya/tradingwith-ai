@@ -1,8 +1,8 @@
+import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 from SmartApi import SmartConnect
 import pyotp
-import streamlit as st
 import time
 
 class DataLoader:
@@ -13,29 +13,16 @@ class DataLoader:
             return st.session_state['smart_api']
 
         try:
-            # --- SMART SECRETS FETCHING (Robust Fix) ---
-            # આ કોડ બંને નામ ચેક કરશે (TRADING_... અથવા સાદું નામ)
-            
-            # 1. API KEY
+            # Secrets માંથી ડેટા લો
             api_key = st.secrets.get("TRADING_API_KEY") or st.secrets.get("API_KEY")
-            
-            # 2. CLIENT ID
             client_id = st.secrets.get("CLIENT_ID")
-            
-            # 3. PASSWORD (આમાં જ ભૂલ હતી)
             pwd = st.secrets.get("TRADING_PWD") or st.secrets.get("PASSWORD")
-            
-            # 4. TOTP KEY
             raw_totp = st.secrets.get("TOTP_KEY")
             
-            # જો કોઈ પણ વસ્તુ ખૂટતી હોય
             if not all([api_key, client_id, pwd, raw_totp]):
-                print("Missing Secrets! Check .streamlit/secrets.toml")
                 return None
 
-            # TOTP Space Fix
             totp_key = "".join(str(raw_totp).split()).strip()
-
             obj = SmartConnect(api_key=api_key)
             totp = pyotp.TOTP(totp_key).now()
             
@@ -45,10 +32,8 @@ class DataLoader:
                 st.session_state['smart_api'] = obj
                 return obj
             else:
-                print(f"Login Failed: {data['message']}")
                 return None
         except Exception as e:
-            print(f"Login Error: {e}")
             return None
 
     @staticmethod
