@@ -5,174 +5,235 @@ import pandas as pd
 import sys
 import os
 
-# --- PATH FIX ---
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from utils.data_loader import DataLoader
-from features.feature_engineering import FeatureEngine
+# --- 1. PATH SETUP (CRITICAL FIX) ---
+current_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(current_dir)
+sys.path.append(root_dir)
 
-# Mobile Friendly Layout
-st.set_page_config(layout="wide", page_title="Tradingwith-Ai", page_icon="🚀")
+try:
+    from utils.data_loader import DataLoader
+    from features.feature_engineering import FeatureEngine
+except ImportError as e:
+    st.error(f"System Error: {e}. Please check folder structure.")
+    st.stop()
 
-# --- CSS STYLING (Mobile Responsive) ---
+# Page Config
+st.set_page_config(layout="wide", page_title="AI Trading", page_icon="📈")
+
+# --- CSS STYLING ---
 st.markdown("""
     <style>
     .stApp { background-color: #0E1117; }
     
-    /* Mobile Responsive Card */
-    .signal-card {
-        padding: 15px; 
-        border-radius: 10px; 
-        text-align: center; 
-        color: white;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.5); 
-        margin-bottom: 10px; 
-        border: 1px solid #333;
+    .status-badge {
+        padding: 8px 15px; border-radius: 5px; font-weight: bold; font-size: 14px;
+        margin-bottom: 20px; text-align: center; width: 100%;
     }
-    
-    /* Small adjustments for mobile text */
-    @media only screen and (max-width: 600px) {
-        .signal-card h2 { font-size: 20px !important; }
-        .signal-card span { font-size: 14px !important; }
+    .connected { background-color: #00E676; color: black; border: 1px solid #00b359; }
+    .disconnected { background-color: #FF1744; color: white; border: 1px solid #b3002d; }
+
+    .signal-card {
+        padding: 15px; border-radius: 10px; text-align: center; color: white;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5); margin-bottom: 10px; border: 1px solid #333;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- SIDEBAR ---
+# --- 2. SIDEBAR & CONNECTION ---
 with st.sidebar:
     st.title("🚀 Pro Signals")
     
-    # CSV Loading Logic
-    csv_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'metadata', 'symbols.csv')
-    if os.path.exists(csv_path):
-        df_symbols = pd.read_csv(csv_path)
-        watchlist = dict(zip(df_symbols['symbol'], df_symbols['token']))
+    api_session = DataLoader.get_session()
+    
+    if api_session:
+        st.markdown('<div class="status-badge connected">✅ Angel One: Connected</div>', unsafe_allow_html=True)
     else:
-        st.error("⚠️ symbols.csv missing!")
-        st.stop()
+        st.markdown('<div class="status-badge disconnected">❌ Angel One: Disconnected</div>', unsafe_allow_html=True)
 
-    asset = st.selectbox("Select Asset", list(watchlist.keys()))
-    interval = st.radio("Interval", ["3min", "5min", "10min", "15min"], index=1)
+    if not api_session:
+        st.warning("⚠️ Broker Disconnected")
     
-    st.divider()
-    st.caption("⚙️ Active Indicators")
-    show_ema = st.checkbox("EMA 9 & 50", value=True)
-    show_supertrend = st.checkbox("Supertrend", value=True)
-    show_bb = st.checkbox("Bollinger Bands")
-    show_vwap = st.checkbox("VWAP")
-    show_volume = st.checkbox("Volume", value=True)
-    show_rsi = st.checkbox("RSI Panel", value=True)
-    
-    if st.button("🔄 Refresh Data"): st.rerun()
+    if api_session:
+        # CSV Path Fix using root_dir
+        csv_path = os.path.join(root_dir, 'data', 'metadata', 'symbols.csv')
+        
+        if os.path.exists(csv_path):
+            df_symbols = pd.read_csv(csv_path)
+            watchlist = dict(zip(df_symbols['symbol'], df_symbols['token']))
+            
+            asset = st.selectbox("Select Asset", list(watchlist.keys()))
+            interval = st.radio("Interval", ["3min", "5min", "10min", "15min"], index=1)
+            
+            st.divider()
+            st.caption("⚙️ Chart Settings")
+            show_ema = st.checkbox("EMA 9 & 50", value=True)
+            show_supertrend = st.checkbox("Supertrend", value=True)
+            
+            if st.button("🔄 Refresh"): st.rerun()
+        else:
+            st.error("⚠️ symbols.csv missing!")
+            st.stop()
 
-# --- MAIN ENGINE ---
+# --- 3. MAINTENANCE SCREEN ---
+if not api_session:
+    st.markdown("""
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80vh; text-align: center;">
+            <h1 style="color: #FF1744; font-size: 40px;">⚠️ System Maintenance</h1>
+            <h3 style="color: #aaa;">Angel One API Connection Failed.</h3>
+            <p>Please check your API Key and Credentials.</p>
+        </div>
+    """, unsafe_allow_html=True)
+    st.stop()
+
+# --- 4. MAIN ENGINE & GRAPH ---
 tf_map = {"3min": "THREE_MINUTE", "5min": "FIVE_MINUTE", "10min": "TEN_MINUTE", "15min": "FIFTEEN_MINUTE"}
 df = DataLoader.fetch_ohlcv(watchlist[asset], tf_map[interval])
 
 if df.empty:
-    st.warning(f"Waiting for market data: {asset}...")
+    st.info(f"⏳ Waiting for market data: {asset}...")
     st.stop()
 
-# ગણતરી FeatureEngine માં
-df = FeatureEngine.apply_indicators(df)
+# Apply Indicators
+try:
+    df = FeatureEngine.apply_indicators(df)
+except Exception as e:
+    st.error(f"Calculation Error: {e}")
+    st.stop()
 
-# --- SIGNAL CARD (Mobile Friendly) ---
+# Signal Logic
 if len(df) > 0:
-    rsi_val = df['rsi'].iloc[-1]
-    ltp = df['close'].iloc[-1]
-    is_uptrend = df['in_uptrend'].iloc[-1]
+    last_row = df.iloc[-1]
+    rsi = last_row['rsi']
+    close = last_row['close']
+    is_uptrend = last_row['in_uptrend']
     
-    if rsi_val > 70:
-        sig, color = "SELL", "#FF1744"
-    elif rsi_val < 30:
-        sig, color = "BUY", "#00E676"
-    elif is_uptrend:
-        sig, color = "BULLISH", "#00E676"
+    if is_uptrend and rsi > 55:
+        sig, color = "STRONG BUY 🚀", "#00E676"
+    elif not is_uptrend and rsi < 45:
+        sig, color = "STRONG SELL 🔻", "#FF1744"
     else:
-        sig, color = "BEARISH", "#FF1744"
+        sig, color = "WAIT / SIDEWAYS ⚠️", "#FF9800"
 
+    # Signal Card
     st.markdown(f"""
         <div class="signal-card" style="border: 1px solid {color};">
             <h2 style="margin:0; color: {color};">{asset}: {sig}</h2>
-            <div style="display: flex; justify-content: space-between; flex-wrap: wrap; margin-top: 5px; font-size: 16px;">
-                <span style="margin: 5px;">CMP: <b>{ltp}</b></span>
-                <span style="margin: 5px;">Trend: <b>{'UP' if is_uptrend else 'DOWN'}</b></span>
+            <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                <span>CMP: <b>{close}</b></span>
+                <span>RSI: <b>{round(rsi, 2)}</b></span>
             </div>
         </div>
     """, unsafe_allow_html=True)
 
-    # --- PLOTLY GRAPH ---
-    display_df = df.tail(150) # Mobile પર થોડો વધારે ડેટા લોડ કરીએ જેથી ઝૂમ કરવા મળે
+   # --- 5. ULTRA CLEAN TRADING GRAPH (Lag Free & Crosshair) ---
+    # Lag ઘટાડવા માટે આપણે છેલ્લી 100 કેન્ડલ જ લઈશું (Mobile માટે Best)
+    display_df = df.tail(100)
 
-    # Dynamic Rows
-    rows = 1
-    row_heights = [1.0]
-    if show_volume and show_rsi:
-        rows = 3
-        row_heights = [0.6, 0.2, 0.2] # Mobile પર મેઈન ચાર્ટને થોડી વધારે જગ્યા આપી
-    elif show_volume or show_rsi:
-        rows = 2
-        row_heights = [0.75, 0.25]
+    # 3 Rows Layout
+    fig = make_subplots(
+        rows=3, cols=1, 
+        shared_xaxes=True, 
+        vertical_spacing=0.0, # જગ્યા એકદમ ઓછી કરી જેથી સળંગ લાગે
+        row_heights=[0.7, 0.15, 0.15] # Price ને 70% જગ્યા
+    )
 
-    fig = make_subplots(rows=rows, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=row_heights)
-
-    # 1. Price Candle
+    # 1. CANDLESTICK (Main Price)
     fig.add_trace(go.Candlestick(
-        x=display_df.index, open=display_df['open'], high=display_df['high'],
-        low=display_df['low'], close=display_df['close'], name="Price",
-        increasing_line_color='#089981', decreasing_line_color='#F23645'
+        x=display_df.index, 
+        open=display_df['open'], high=display_df['high'],
+        low=display_df['low'], close=display_df['close'], 
+        name="Price",
+        increasing_line_color='#089981', decreasing_line_color='#F23645',
+        # Tooltip માં ખાલી ભાવ જ દેખાશે
+        text=[f"Close: {c}" for c in display_df['close']],
+        hoverinfo="x+y+text" 
     ), row=1, col=1)
 
-    # 2. Indicators
-    if show_supertrend:
-        st_green = display_df[display_df['in_uptrend']]
-        fig.add_trace(go.Scatter(x=st_green.index, y=st_green['supertrend'], mode='markers', marker=dict(color='green', size=2), name="ST Up"), row=1, col=1)
-        st_red = display_df[~display_df['in_uptrend']]
-        fig.add_trace(go.Scatter(x=st_red.index, y=st_red['supertrend'], mode='markers', marker=dict(color='red', size=2), name="ST Down"), row=1, col=1)
-
-    if show_bb:
-        fig.add_trace(go.Scatter(x=display_df.index, y=display_df['bb_upper'], name="BB Up", line=dict(color='gray', width=1, dash='dot')), row=1, col=1)
-        fig.add_trace(go.Scatter(x=display_df.index, y=display_df['bb_lower'], name="BB Low", line=dict(color='gray', width=1, dash='dot'), fill='tonexty', fillcolor='rgba(255,255,255,0.05)'), row=1, col=1)
-
+    # 2. INDICATORS (Hidden from Tooltip to Reduce Lag)
     if show_ema:
-        fig.add_trace(go.Scatter(x=display_df.index, y=display_df['ema_9'], name="EMA 9", line=dict(color='#2962FF', width=1)), row=1, col=1)
-        fig.add_trace(go.Scatter(x=display_df.index, y=display_df['ema_50'], name="EMA 50", line=dict(color='#FF9800', width=1)), row=1, col=1)
+        fig.add_trace(go.Scatter(x=display_df.index, y=display_df['ema_9'], 
+                                 line=dict(color='#2962FF', width=1), 
+                                 hoverinfo='skip'), row=1, col=1) # hoverinfo='skip' થી Tooltip માં નહિ આવે
+        
+        fig.add_trace(go.Scatter(x=display_df.index, y=display_df['ema_50'], 
+                                 line=dict(color='#FF9800', width=1), 
+                                 hoverinfo='skip'), row=1, col=1)
+
+    if show_supertrend:
+        st_color = ['#00E676' if x else '#FF1744' for x in display_df['in_uptrend']]
+        fig.add_trace(go.Scatter(
+            x=display_df.index, y=display_df['supertrend'], 
+            mode='markers', marker=dict(color=st_color, size=3), 
+            hoverinfo='skip'), row=1, col=1)
+
+    # 3. VOLUME (Separate Panel)
+    vol_colors = ['rgba(8, 153, 129, 0.5)' if c >= o else 'rgba(242, 54, 69, 0.5)' 
+                  for o, c in zip(display_df['open'], display_df['close'])]
+    fig.add_trace(go.Bar(x=display_df.index, y=display_df['volume'], 
+                         marker_color=vol_colors, hoverinfo='skip'), row=2, col=1)
+
+    # 4. RSI (Bottom Panel)
+    fig.add_trace(go.Scatter(x=display_df.index, y=display_df['rsi'], 
+                             line=dict(color='#B39DDB', width=1.5), 
+                             hoverinfo='skip'), row=3, col=1)
     
-    if show_vwap:
-        fig.add_trace(go.Scatter(x=display_df.index, y=display_df['vwap'], name="VWAP", line=dict(color='#E11E63', width=1)), row=1, col=1)
+    # RSI Lines
+    fig.add_hline(y=70, line_dash="dot", line_color="#F23645", row=3, col=1)
+    fig.add_hline(y=30, line_dash="dot", line_color="#089981", row=3, col=1)
 
-    # --- SUBPLOTS ---
-    current_row = 2
-    if show_volume:
-        colors = ['#F23645' if c < o else '#089981' for o, c in zip(display_df['open'], display_df['close'])]
-        fig.add_trace(go.Bar(x=display_df.index, y=display_df['volume'], name="Vol", marker_color=colors), row=current_row, col=1)
-        current_row += 1
-
-    if show_rsi:
-        fig.add_trace(go.Scatter(x=display_df.index, y=display_df['rsi'], name="RSI", line=dict(color='#9C27B0', width=2)), row=current_row, col=1)
-        fig.add_hline(y=70, line_dash="dot", line_color="red", row=current_row, col=1)
-        fig.add_hline(y=30, line_dash="dot", line_color="green", row=current_row, col=1)
-
-    # --- LAYOUT (Mobile Optimized with ZOOM FIX) ---
+    # --- LAYOUT SETTINGS (Crosshair & Zoom Logic) ---
     fig.update_layout(
-        height=600, # Mobile પર બહુ લાંબો સ્ક્રોલ ન થાય તે માટે હાઈટ એડજસ્ટ કરી
-        template="plotly_dark", 
-        xaxis_rangeslider_visible=False,
-        dragmode='pan', # Mobile માટે Pan બેસ્ટ છે
-        margin=dict(l=0, r=0, t=0, b=0), 
-        hovermode='x unified',
-        paper_bgcolor="#0E1117", 
-        plot_bgcolor="#0E1117",
-        autosize=True
+        height=600, 
+        template="plotly_dark",
+        paper_bgcolor="#131722", plot_bgcolor="#131722",
+        margin=dict(l=0, r=50, t=10, b=0),
+        
+        # Crosshair Logic (-|-)
+        hovermode='x', # 'unified' ને બદલે 'x' વાપર્યું જેથી ગ્રાફ ચોંટે નહિ
+        dragmode='pan', # મોબાઈલ માટે પાન બેસ્ટ છે
+        showlegend=False,
+        
+        # Tooltip Style (Clean)
+        hoverlabel=dict(
+            bgcolor="#1e222d",
+            font_size=14,
+            font_family="Monospace"
+        )
     )
-    
-    # CRITICAL FIX: fixedrange=True for Y-Axis
-    # આનાથી જ્યારે તું Pinch કરીશ ત્યારે ગ્રાફ ચપટો નહીં થાય, ખાલી ટાઈમ ઝૂમ થશે.
-    fig.update_yaxes(fixedrange=True, showspikes=True, spikemode='across', spikesnap='cursor', showgrid=True, gridcolor='#1e222d', side='right')
-    fig.update_xaxes(fixedrange=False, showspikes=True, spikemode='across', spikesnap='cursor', showgrid=True, gridcolor='#1e222d')
 
-    # Mobile Config
+    # X-AXIS (Crosshair Lines Enabled)
+    fig.update_xaxes(
+        showgrid=False, 
+        showspikes=True, # આનાથી ઊભી લાઈન આવશે
+        spikemode='across', 
+        spikesnap='cursor',
+        spikethickness=1,
+        spikedash='solid',
+        spikecolor='rgba(255,255,255,0.3)',
+        row=3, col=1
+    )
+    # Hide X-labels for upper charts
+    fig.update_xaxes(showticklabels=False, showspikes=True, spikemode='across', row=1, col=1)
+    fig.update_xaxes(showticklabels=False, showspikes=True, spikemode='across', row=2, col=1)
+
+    # Y-AXIS (Right Side & Zoomable)
+    fig.update_yaxes(
+        side='right', 
+        showgrid=True, gridcolor='rgba(255,255,255,0.1)',
+        fixedrange=False, # Zoom ચાલુ
+        showspikes=True, # આનાથી આડી લાઈન આવશે
+        spikemode='across',
+        spikethickness=1,
+        spikecolor='rgba(255,255,255,0.3)',
+        row=1, col=1
+    )
+    # Hide Volume/RSI Y-labels
+    fig.update_yaxes(showticklabels=False, showgrid=False, row=2, col=1)
+    fig.update_yaxes(side='right', range=[0, 100], row=3, col=1)
+
+    # Final Render
     st.plotly_chart(fig, use_container_width=True, config={
-        'scrollZoom': True,  # Pinch to Zoom ચાલુ
-        'displayModeBar': False, # મોબાઈલમાં ઉપરના બટન્સ નડતરરૂપ હોય છે, તે કાઢી નાખ્યા
-        'responsive': True 
+        'scrollZoom': True, 
+        'displayModeBar': False,
+        'staticPlot': False
     })

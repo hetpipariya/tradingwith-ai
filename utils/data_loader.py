@@ -7,18 +7,20 @@ import os
 import time
 
 class DataLoader:
-    # સેશનને કેશ (Cache) કરીએ છીએ જેથી વારંવાર લોગિન ન કરવું પડે
     @staticmethod
-    @st.cache_resource(ttl=3600) # 1 કલાક સુધી લોગિન સાચવી રાખશે
     def get_session():
+        # Session State માં ચેક કરો કે લોગિન છે કે નહિ
+        if 'smart_api' in st.session_state and st.session_state['smart_api']:
+            return st.session_state['smart_api']
+
         try:
-            # સિક્રેટ્સ લોડ કરો
-            api_key = st.secrets.get("API_KEY") or os.getenv("API_KEY")
-            client_id = st.secrets.get("CLIENT_ID") or os.getenv("CLIENT_ID")
-            pwd = st.secrets.get("PASSWORD") or os.getenv("PASSWORD")
-            raw_totp = st.secrets.get("TOTP_KEY") or os.getenv("TOTP_KEY")
+            # Secrets માંથી ડેટા લો
+            api_key = st.secrets["API_KEY"]
+            client_id = st.secrets["CLIENT_ID"]
+            pwd = st.secrets["PASSWORD"]
+            raw_totp = st.secrets["TOTP_KEY"]
             
-            # સ્પેસ દૂર કરો (Non-base32 એરર ફિક્સ)
+            # TOTP માં સ્પેસ હોય તો કાઢી નાખો
             totp_key = "".join(raw_totp.split()).strip()
 
             obj = SmartConnect(api_key=api_key)
@@ -27,41 +29,43 @@ class DataLoader:
             data = obj.generateSession(client_id, pwd, totp)
             
             if data['status']:
+                st.session_state['smart_api'] = obj
                 return obj
             else:
-                st.error(f"Login Failed: {data['message']}")
+                # જો લોગિન ફેઈલ થાય તો None રિટર્ન કરો (Crash નહિ)
+                print(f"Login Failed: {data['message']}")
                 return None
         except Exception as e:
-            st.error(f"Critical Login Error: {e}")
+            print(f"Critical Login Error: {e}")
             return None
 
     @staticmethod
-    # ડેટાને પણ 1 મિનિટ કેશ કરો જેથી રિફ્રેશ રેટ લિમિટ ન નડે
-    @st.cache_data(ttl=60) 
+    @st.cache_data(ttl=60, show_spinner=False)
     def fetch_ohlcv(symbol_token, interval="FIVE_MINUTE"):
         api = DataLoader.get_session()
         if not api: return pd.DataFrame()
         
-        # 10 દિવસનો ડેટા
         to_date = datetime.now().strftime("%Y-%m-%d %H:%M")
-        from_date = (datetime.now() - timedelta(days=10)).strftime("%Y-%m-%d %H:%M")
+        from_date = (datetime.now() - timedelta(days=5)).strftime("%Y-%m-%d %H:%M")
         
         try:
-            # ધીમી રિક્વેસ્ટ માટે થોડો વિરામ (Safe side)
-            time.sleep(0.5) 
+            time.sleep(0.2) # Rate limit થી બચવા
             data = api.getCandleData({
-                "exchange": "NSE", "symboltoken": str(symbol_token),
-                "interval": interval, "fromdate": from_date, "todate": to_date
+                "exchange": "NSE", 
+                "symboltoken": str(symbol_token),
+                "interval": interval, 
+                "fromdate": from_date, 
+                "todate": to_date
             })
             
-            if data and data.get('status'):
+            if data and isinstance(data, dict) and data.get('status'):
                 df = pd.DataFrame(data['data'], columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
                 df['timestamp'] = pd.to_datetime(df['timestamp'])
                 df.set_index('timestamp', inplace=True)
-                return df.astype(float)
-        except Exception as e:
-            # ચૂપચાપ ફેલ થવાને બદલે પ્રિન્ટ કરો
-            print(f"Data Fetch Error: {e}")
-            pass
-            
-        return pd.DataFrame()
+                # બધો ડેટા ફ્લોટમાં કન્વર્ટ કરવો જરૂરી
+                df = df.astype(float)
+                return df
+            else:
+                return pd.DataFrame()
+        except Exception:
+            return pd.DataFrame()
