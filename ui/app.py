@@ -11,7 +11,7 @@ from utils.data_loader import DataLoader
 from features.feature_engineering import FeatureEngine
 
 # Mobile Friendly Layout
-st.set_page_config(layout="wide", page_title="Pro Signals v5.0", page_icon="🚀")
+st.set_page_config(layout="wide", page_title="Tradingwith-Ai", page_icon="🚀")
 
 # --- CSS STYLING (Mobile Responsive) ---
 st.markdown("""
