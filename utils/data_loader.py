@@ -3,31 +3,38 @@ from datetime import datetime, timedelta
 from SmartApi import SmartConnect
 import pyotp
 import streamlit as st
-import os
 import time
 
 class DataLoader:
     @staticmethod
     def get_session():
-        # જો લોગિન થયેલું હોય તો ફરી ન કરો
+        # જો લોગિન હોય તો ફરી ન કરો
         if 'smart_api' in st.session_state and st.session_state['smart_api']:
             return st.session_state['smart_api']
 
         try:
-            # --- UPDATED SECRETS (તમારા ફોટા મુજબ) ---
-            # હવે કોડ TRADING_API_KEY શોધશે
-            api_key = st.secrets.get("TRADING_API_KEY") 
+            # --- SMART SECRETS FETCHING (Robust Fix) ---
+            # આ કોડ બંને નામ ચેક કરશે (TRADING_... અથવા સાદું નામ)
+            
+            # 1. API KEY
+            api_key = st.secrets.get("TRADING_API_KEY") or st.secrets.get("API_KEY")
+            
+            # 2. CLIENT ID
             client_id = st.secrets.get("CLIENT_ID")
-            pwd = st.secrets.get("TRADING_PWD") 
+            
+            # 3. PASSWORD (આમાં જ ભૂલ હતી)
+            pwd = st.secrets.get("TRADING_PWD") or st.secrets.get("PASSWORD")
+            
+            # 4. TOTP KEY
             raw_totp = st.secrets.get("TOTP_KEY")
             
-            # જો કોઈ ડેટા ખૂટતો હોય તો લોગિન અટકાવો
+            # જો કોઈ પણ વસ્તુ ખૂટતી હોય
             if not all([api_key, client_id, pwd, raw_totp]):
-                print("Missing Secrets in Streamlit Cloud Settings")
+                print("Missing Secrets! Check .streamlit/secrets.toml")
                 return None
 
-            # TOTP માંથી સ્પેસ હટાવો
-            totp_key = "".join(raw_totp.split()).strip()
+            # TOTP Space Fix
+            totp_key = "".join(str(raw_totp).split()).strip()
 
             obj = SmartConnect(api_key=api_key)
             totp = pyotp.TOTP(totp_key).now()
