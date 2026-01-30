@@ -125,16 +125,15 @@ if len(df) > 0:
         </div>
     """, unsafe_allow_html=True)
 
-   # --- 5. ULTRA CLEAN TRADING GRAPH (Lag Free & Crosshair) ---
-    # Lag ઘટાડવા માટે આપણે છેલ્લી 100 કેન્ડલ જ લઈશું (Mobile માટે Best)
+ # --- 5. ULTRA CLEAN TRADING GRAPH (Fix: Only Price & Crosshair) ---
     display_df = df.tail(100)
 
     # 3 Rows Layout
     fig = make_subplots(
         rows=3, cols=1, 
         shared_xaxes=True, 
-        vertical_spacing=0.0, # જગ્યા એકદમ ઓછી કરી જેથી સળંગ લાગે
-        row_heights=[0.7, 0.15, 0.15] # Price ને 70% જગ્યા
+        vertical_spacing=0.0, 
+        row_heights=[0.7, 0.15, 0.15]
     )
 
     # 1. CANDLESTICK (Main Price)
@@ -142,18 +141,17 @@ if len(df) > 0:
         x=display_df.index, 
         open=display_df['open'], high=display_df['high'],
         low=display_df['low'], close=display_df['close'], 
-        name="Price",
+        name="", # નામ ખાલી રાખ્યું જેથી Tooltip માં કચરો ન આવે
         increasing_line_color='#089981', decreasing_line_color='#F23645',
-        # Tooltip માં ખાલી ભાવ જ દેખાશે
-        text=[f"Close: {c}" for c in display_df['close']],
-        hoverinfo="x+y+text" 
+        # 'text' કાઢી નાખ્યું એટલે ડબલ ભાવ નહિ દેખાય
+        # ખાલી OHLC (Open, High, Low, Close) જ દેખાશે
     ), row=1, col=1)
 
-    # 2. INDICATORS (Hidden from Tooltip to Reduce Lag)
+    # 2. INDICATORS (Hidden from Tooltip)
     if show_ema:
         fig.add_trace(go.Scatter(x=display_df.index, y=display_df['ema_9'], 
                                  line=dict(color='#2962FF', width=1), 
-                                 hoverinfo='skip'), row=1, col=1) # hoverinfo='skip' થી Tooltip માં નહિ આવે
+                                 hoverinfo='skip'), row=1, col=1)
         
         fig.add_trace(go.Scatter(x=display_df.index, y=display_df['ema_50'], 
                                  line=dict(color='#FF9800', width=1), 
@@ -166,34 +164,33 @@ if len(df) > 0:
             mode='markers', marker=dict(color=st_color, size=3), 
             hoverinfo='skip'), row=1, col=1)
 
-    # 3. VOLUME (Separate Panel)
+    # 3. VOLUME
     vol_colors = ['rgba(8, 153, 129, 0.5)' if c >= o else 'rgba(242, 54, 69, 0.5)' 
                   for o, c in zip(display_df['open'], display_df['close'])]
     fig.add_trace(go.Bar(x=display_df.index, y=display_df['volume'], 
                          marker_color=vol_colors, hoverinfo='skip'), row=2, col=1)
 
-    # 4. RSI (Bottom Panel)
+    # 4. RSI
     fig.add_trace(go.Scatter(x=display_df.index, y=display_df['rsi'], 
                              line=dict(color='#B39DDB', width=1.5), 
                              hoverinfo='skip'), row=3, col=1)
     
-    # RSI Lines
     fig.add_hline(y=70, line_dash="dot", line_color="#F23645", row=3, col=1)
     fig.add_hline(y=30, line_dash="dot", line_color="#089981", row=3, col=1)
 
-    # --- LAYOUT SETTINGS (Crosshair & Zoom Logic) ---
+    # --- LAYOUT SETTINGS ---
     fig.update_layout(
         height=600, 
         template="plotly_dark",
         paper_bgcolor="#131722", plot_bgcolor="#131722",
         margin=dict(l=0, r=50, t=10, b=0),
         
-        # Crosshair Logic (-|-)
-        hovermode='x', # 'unified' ને બદલે 'x' વાપર્યું જેથી ગ્રાફ ચોંટે નહિ
-        dragmode='pan', # મોબાઈલ માટે પાન બેસ્ટ છે
+        # આનાથી Tooltip ખાલી એક જ જગ્યાએ દેખાશે (Mouse પાસે)
+        hovermode='x', 
+        dragmode='pan',
         showlegend=False,
         
-        # Tooltip Style (Clean)
+        # Tooltip Style Clean Up
         hoverlabel=dict(
             bgcolor="#1e222d",
             font_size=14,
@@ -201,37 +198,35 @@ if len(df) > 0:
         )
     )
 
-    # X-AXIS (Crosshair Lines Enabled)
+    # X-AXIS (Crosshair Lines)
     fig.update_xaxes(
         showgrid=False, 
-        showspikes=True, # આનાથી ઊભી લાઈન આવશે
-        spikemode='across', 
-        spikesnap='cursor',
-        spikethickness=1,
-        spikedash='solid',
-        spikecolor='rgba(255,255,255,0.3)',
+        showspikes=True, spikemode='across', spikesnap='cursor',
+        spikethickness=1, spikecolor='rgba(255,255,255,0.3)',
         row=3, col=1
     )
-    # Hide X-labels for upper charts
     fig.update_xaxes(showticklabels=False, showspikes=True, spikemode='across', row=1, col=1)
     fig.update_xaxes(showticklabels=False, showspikes=True, spikemode='across', row=2, col=1)
 
-    # Y-AXIS (Right Side & Zoomable)
+    # Y-AXIS (Price Cursor Label)
     fig.update_yaxes(
         side='right', 
         showgrid=True, gridcolor='rgba(255,255,255,0.1)',
-        fixedrange=False, # Zoom ચાલુ
-        showspikes=True, # આનાથી આડી લાઈન આવશે
+        fixedrange=False,
+        
+        # આ સેટિંગથી તમે જ્યાં Arrow રાખશો ત્યાંની જ પ્રાઈસ દેખાશે
+        showspikes=True, 
         spikemode='across',
+        spikesnap='cursor', # Cursor ની લાઈનમાં ભાવ દેખાશે
         spikethickness=1,
         spikecolor='rgba(255,255,255,0.3)',
+        
         row=1, col=1
     )
-    # Hide Volume/RSI Y-labels
+    
     fig.update_yaxes(showticklabels=False, showgrid=False, row=2, col=1)
     fig.update_yaxes(side='right', range=[0, 100], row=3, col=1)
 
-    # Final Render
     st.plotly_chart(fig, use_container_width=True, config={
         'scrollZoom': True, 
         'displayModeBar': False,
