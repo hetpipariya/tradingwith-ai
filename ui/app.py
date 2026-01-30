@@ -37,7 +37,7 @@ st.markdown("""
     
     /* FIX: Increased padding-top so the alert bar is visible */
     .block-container {
-        padding-top: 3.5rem; /* Increased from 1rem to 3.5rem */
+        padding-top: 3.5rem;
         padding-bottom: 5rem;
         padding-left: 0.5rem;
         padding-right: 0.5rem;
@@ -193,14 +193,19 @@ fig.update_layout(
     plot_bgcolor="#131722", 
     margin=dict(l=0, r=45, t=10, b=0), 
     hovermode='x unified', 
-    dragmode='pan', 
+    dragmode='pan', # Changed to PAN for mobile
     showlegend=False, 
     xaxis=dict(rangeslider=dict(visible=False), type="category")
 )
 fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.05)', showline=False)
 fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.05)', side='right') 
 
-st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'scrollZoom': True})
+# FIX: scrollZoom False removes mobile lag/glitch
+st.plotly_chart(fig, use_container_width=True, config={
+    'displayModeBar': False, 
+    'scrollZoom': False, 
+    'staticPlot': False
+})
 
 # --- PAPER TRADING UI ---
 if trading_mode:
