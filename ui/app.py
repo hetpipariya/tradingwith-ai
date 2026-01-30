@@ -30,15 +30,15 @@ if 'positions' not in st.session_state:
 if 'trade_log' not in st.session_state:
     st.session_state['trade_log'] = []
 
-# --- CSS STYLING (MOBILE OPTIMIZED) ---
+# --- CSS STYLING (MOBILE OPTIMIZED & FIXED LAYOUT) ---
 st.markdown("""
     <style>
     .stApp { background-color: #131722; }
     
-    /* Mobile Optimization: Reduce padding to utilize full screen */
+    /* FIX: Increased padding-top so the alert bar is visible */
     .block-container {
-        padding-top: 1rem;
-        padding-bottom: 5rem; /* Space for footer */
+        padding-top: 3.5rem; /* Increased from 1rem to 3.5rem */
+        padding-bottom: 5rem;
         padding-left: 0.5rem;
         padding-right: 0.5rem;
     }
@@ -62,7 +62,7 @@ st.markdown("""
     /* Responsive Text for Alert */
     @media only screen and (max-width: 600px) {
         .alert-box { font-size: 14px; }
-        .stButton button { width: 100%; } /* Full width buttons on mobile */
+        .stButton button { width: 100%; }
     }
     @media only screen and (min-width: 601px) {
         .alert-box { font-size: 20px; }
@@ -119,9 +119,8 @@ if df.empty:
     st.warning("Data Loading...")
     st.stop()
 
-# --- FIX START: Initialize variable here to avoid NameError ---
+# --- FIX: Initialize variable to avoid NameError ---
 detected_patterns = [] 
-# --- FIX END ---
 
 try:
     df = FeatureEngine.apply_indicators(df)
@@ -155,8 +154,8 @@ elif not is_uptrend and rsi < 45:
         </div>
     """, unsafe_allow_html=True)
 
-# --- CHART PLOTTING (MOBILE OPTIMIZED) ---
-display_df = df.tail(100) # Reduced to 100 for better mobile performance
+# --- CHART PLOTTING ---
+display_df = df.tail(100) 
 fig = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=[0.65, 0.15, 0.20])
 
 # Candle
@@ -186,27 +185,26 @@ fig.add_trace(go.Scatter(x=display_df.index, y=display_df['rsi'], line=dict(colo
 fig.add_hline(y=70, line_dash="dot", line_color="#F23645", row=3, col=1)
 fig.add_hline(y=30, line_dash="dot", line_color="#089981", row=3, col=1)
 
-# Layout Optimization for Mobile
+# Layout Optimization
 fig.update_layout(
-    height=550, # Slightly reduced height for mobile scrolling
+    height=550,
     template="plotly_dark", 
     paper_bgcolor="#131722", 
     plot_bgcolor="#131722", 
-    margin=dict(l=0, r=45, t=10, b=0), # Zero left margin, space on right for price
+    margin=dict(l=0, r=45, t=10, b=0), 
     hovermode='x unified', 
     dragmode='pan', 
     showlegend=False, 
     xaxis=dict(rangeslider=dict(visible=False), type="category")
 )
 fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.05)', showline=False)
-fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.05)', side='right') # Price on Right
+fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.05)', side='right') 
 
 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'scrollZoom': True})
 
 # --- PAPER TRADING UI ---
 if trading_mode:
     st.markdown("---")
-    # Using columns but they will stack on mobile automatically
     c1, c2 = st.columns([1, 1])
     
     with c1:
@@ -263,14 +261,13 @@ if trading_mode:
             st.session_state['trade_log'] = []
             st.rerun()
             
-    # Log moved to bottom for mobile
     if st.session_state['trade_log']:
         with st.expander("📜 Trade History"):
             log_text = "\n".join(st.session_state['trade_log'][-5:])
             st.code(log_text)
 
 else:
-    # --- FLOATING SIGNAL FOOTER (MOBILE FRIENDLY) ---
+    # --- FLOATING SIGNAL FOOTER ---
     col = "#00E676" if "BUY" in signal_type else "#FF1744" if "SELL" in signal_type else "#FF9800"
     st.markdown(f"""
         <div style="position: fixed; bottom: 10px; right: 10px; background: #1e222d; padding: 10px; border-radius: 8px; border-left: 4px solid {col}; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.5); z-index: 100; font-size: 14px;">
