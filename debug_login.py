@@ -1,46 +1,56 @@
-import os
-from dotenv import load_dotenv
-from SmartApi import SmartConnect
+import requests
+import json
 import pyotp
+import socket
+import uuid
 
-# 1. Try to load .env file
-print("🔍 Reading .env file...")
-loaded = load_dotenv()
-if not loaded:
-    print("❌ ERROR: Could not find .env file!")
-    print("👉 Make sure .env file exists in this folder.")
-else:
-    print("✅ .env file found!")
+# --- CONFIGURATION ---
+api_key = "CWBI5fnF"
+client_code = "AACB794689"
+password = "7310"
+totp_secret = "ZJH6GT6X64G7K5SJFK42OO73JA"
 
-# 2. Check Variables
-api_key = os.getenv("TRADING_API_KEY")
-client_id = os.getenv("CLIENT_ID")
-pwd = os.getenv("TRADING_PWD")
-totp_key = os.getenv("TOTP_KEY")
+# 1. Automatic TOTP generate karo
+totp = pyotp.TOTP(totp_secret).now()
 
-print(f"\n🔑 Checking Keys:")
-print(f"   API Key Found?   : {'YES' if api_key else '❌ NO'}")
-print(f"   Client ID Found? : {'YES' if client_id else '❌ NO'}")
-print(f"   Password Found?  : {'YES' if pwd else '❌ NO'}")
-print(f"   TOTP Key Found?  : {'YES' if totp_key else '❌ NO'}")
+# 2. Local IP ane MAC Address automatic melvo (400 error thi bachva mate)
+client_local_ip = socket.gethostbyname(socket.gethostname())
+client_public_ip = requests.get('https://api.ipify.org').text
+mac_address = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0, 8*6, 8)][::-1])
 
-if not (api_key and client_id and pwd and totp_key):
-    print("\n❌ STOPPING: Some keys are missing in .env file.")
-    exit()
+url = "https://apiconnect.angelbroking.com/rest/auth/angelbroking/user/v1/loginByPassword"
 
-# 3. Try to Login
-print("\n📡 Connecting to Angel One...")
+payload = {
+    "clientcode": client_code,
+    "password": password,
+    "totp": totp
+}
+
+headers = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'X-UserType': 'USER',
+    'X-SourceID': 'WEB',
+    'X-ClientLocalIP': client_local_ip,
+    'X-ClientPublicIP': client_public_ip,
+    'X-MACAddress': mac_address,
+    'X-PrivateKey': api_key
+}
+
 try:
-    obj = SmartConnect(api_key=api_key)
-    totp = pyotp.TOTP(totp_key).now()
-    data = obj.generateSession(client_id, pwd, totp)
+    # data=json.dumps(payload) vaparvu jaruri chhe
+    response = requests.post(url, data=json.dumps(payload), headers=headers)
     
-    if data['status']:
-        print("✅✅ SUCCESS! Login Worked Perfectly.")
-        print(f"👤 User: {data['data']['clientcode']}")
-    else:
-        print("❌ Login Failed!")
-        print(f"⚠️ Message: {data['message']}")
-        
+    print(f"Status Code: {response.status_code}")
+    print(f"Response: {response.text}")
+    
+    if response.status_code == 200:
+        data = response.json()
+        if data['status']:
+            print("--- LOGIN SUCCESS! ---")
+            print(f"JWT Token: {data['data']['jwtToken'][:20]}...") 
+        else:
+            print(f"Login Failed: {data['message']}")
+
 except Exception as e:
-    print(f"\n❌ EXCEPTION (Real Error): {e}")
+    print(f"Error occurred: {e}")
