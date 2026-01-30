@@ -119,6 +119,10 @@ if df.empty:
     st.warning("Data Loading...")
     st.stop()
 
+# --- FIX START: Initialize variable here to avoid NameError ---
+detected_patterns = [] 
+# --- FIX END ---
+
 try:
     df = FeatureEngine.apply_indicators(df)
     detected_patterns = FeatureEngine.detect_patterns(df) if show_patterns else []
@@ -167,6 +171,7 @@ if show_vwap:
 if show_supertrend:
     st_colors = ['#00E676' if x else '#FF1744' for x in display_df['in_uptrend']]
     fig.add_trace(go.Scatter(x=display_df.index, y=display_df['supertrend'], mode='markers', marker=dict(color=st_colors, size=2), name="ST"), row=1, col=1)
+    
 if show_patterns and detected_patterns:
     for pat in detected_patterns:
         x_vals = [pt[0] for pt in pat['points']]
