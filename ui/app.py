@@ -4,8 +4,9 @@ from plotly.subplots import make_subplots
 import pandas as pd
 import sys
 import os
+import requests # CSV ડાઉનલોડ કરવા માટે
 
-# --- 1. PATH SETUP (CRITICAL FIX) ---
+# --- 1. PATH SETUP ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
 sys.path.append(root_dir)
@@ -54,9 +55,37 @@ with st.sidebar:
         st.warning("⚠️ Broker Disconnected")
     
     if api_session:
-        # CSV Path Fix using root_dir
+        # --- AUTO DOWNLOAD CSV LOGIC (Fix for "Symbols Missing") ---
         csv_path = os.path.join(root_dir, 'data', 'metadata', 'symbols.csv')
         
+        # જો ફાઈલ ન હોય, તો ડાઉનલોડ કરો
+        if not os.path.exists(csv_path):
+            with st.spinner("Downloading Symbols..."):
+                try:
+                    # Angel One Master JSON
+                    url = "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json"
+                    r = requests.get(url)
+                    data = r.json()
+                    df_master = pd.DataFrame(data)
+                    
+                    # તમારી વોચલિસ્ટ
+                    my_list = ["IOB", "SUZLON", "UCOBANK", "NHPC", "IDEA", "JPPOWER", "YESBANK", "IRFC"]
+                    
+                    filtered = []
+                    for name in my_list:
+                        row = df_master[(df_master['symbol'] == f"{name}-EQ") & (df_master['exch_seg'] == 'NSE')]
+                        if not row.empty:
+                            filtered.append({'symbol': name, 'token': row.iloc[0]['token']})
+                    
+                    os.makedirs(os.path.dirname(csv_path), exist_ok=True)
+                    pd.DataFrame(filtered).to_csv(csv_path, index=False)
+                    st.success("Data Downloaded!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Download Error: {e}")
+                    st.stop()
+
+        # Load CSV
         if os.path.exists(csv_path):
             df_symbols = pd.read_csv(csv_path)
             watchlist = dict(zip(df_symbols['symbol'], df_symbols['token']))
@@ -80,12 +109,12 @@ if not api_session:
         <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80vh; text-align: center;">
             <h1 style="color: #FF1744; font-size: 40px;">⚠️ System Maintenance</h1>
             <h3 style="color: #aaa;">Angel One API Connection Failed.</h3>
-            <p>Please check your API Key and Credentials.</p>
+            <p>Please check your Secrets in Streamlit Settings.</p>
         </div>
     """, unsafe_allow_html=True)
     st.stop()
 
-# --- 4. MAIN ENGINE & GRAPH ---
+# --- 4. MAIN ENGINE ---
 tf_map = {"3min": "THREE_MINUTE", "5min": "FIVE_MINUTE", "10min": "TEN_MINUTE", "15min": "FIFTEEN_MINUTE"}
 df = DataLoader.fetch_ohlcv(watchlist[asset], tf_map[interval])
 
@@ -125,7 +154,7 @@ if len(df) > 0:
         </div>
     """, unsafe_allow_html=True)
 
- # --- 5. ULTRA CLEAN TRADING GRAPH (Fix: Only Price & Crosshair) ---
+    # --- 5. ULTRA CLEAN TRADING GRAPH (Lag Free & Crosshair) ---
     display_df = df.tail(100)
 
     # 3 Rows Layout
@@ -141,10 +170,9 @@ if len(df) > 0:
         x=display_df.index, 
         open=display_df['open'], high=display_df['high'],
         low=display_df['low'], close=display_df['close'], 
-        name="", # નામ ખાલી રાખ્યું જેથી Tooltip માં કચરો ન આવે
+        name="", # No Name in Tooltip
         increasing_line_color='#089981', decreasing_line_color='#F23645',
-        # 'text' કાઢી નાખ્યું એટલે ડબલ ભાવ નહિ દેખાય
-        # ખાલી OHLC (Open, High, Low, Close) જ દેખાશે
+        # 'text' removed to fix double label
     ), row=1, col=1)
 
     # 2. INDICATORS (Hidden from Tooltip)
@@ -185,12 +213,11 @@ if len(df) > 0:
         paper_bgcolor="#131722", plot_bgcolor="#131722",
         margin=dict(l=0, r=50, t=10, b=0),
         
-        # આનાથી Tooltip ખાલી એક જ જગ્યાએ દેખાશે (Mouse પાસે)
+        # Crosshair & Cursor Logic
         hovermode='x', 
         dragmode='pan',
         showlegend=False,
         
-        # Tooltip Style Clean Up
         hoverlabel=dict(
             bgcolor="#1e222d",
             font_size=14,
@@ -198,7 +225,7 @@ if len(df) > 0:
         )
     )
 
-    # X-AXIS (Crosshair Lines)
+    # X-AXIS
     fig.update_xaxes(
         showgrid=False, 
         showspikes=True, spikemode='across', spikesnap='cursor',
@@ -208,19 +235,13 @@ if len(df) > 0:
     fig.update_xaxes(showticklabels=False, showspikes=True, spikemode='across', row=1, col=1)
     fig.update_xaxes(showticklabels=False, showspikes=True, spikemode='across', row=2, col=1)
 
-    # Y-AXIS (Price Cursor Label)
+    # Y-AXIS (Price Cursor)
     fig.update_yaxes(
         side='right', 
         showgrid=True, gridcolor='rgba(255,255,255,0.1)',
         fixedrange=False,
-        
-        # આ સેટિંગથી તમે જ્યાં Arrow રાખશો ત્યાંની જ પ્રાઈસ દેખાશે
-        showspikes=True, 
-        spikemode='across',
-        spikesnap='cursor', # Cursor ની લાઈનમાં ભાવ દેખાશે
-        spikethickness=1,
-        spikecolor='rgba(255,255,255,0.3)',
-        
+        showspikes=True, spikemode='across', spikesnap='cursor',
+        spikethickness=1, spikecolor='rgba(255,255,255,0.3)',
         row=1, col=1
     )
     
