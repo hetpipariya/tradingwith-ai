@@ -21,6 +21,13 @@ except ImportError as e:
 
 st.set_page_config(layout="wide", page_title="Pro Trader", page_icon="📈")
 
+# --- SIDEBAR: CACHE CLEAR BUTTON (FOR BUG FIX) ---
+with st.sidebar:
+    st.title("⚡ Algo Controls")
+    if st.button("🧹 Clear Cache (Fix Bugs)", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
+
 # --- STATE ---
 if 'balance' not in st.session_state: st.session_state['balance'] = 10000.0
 if 'positions' not in st.session_state: st.session_state['positions'] = {}
@@ -39,9 +46,8 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- SIDEBAR ---
+# --- SIDEBAR CONTROLS ---
 with st.sidebar:
-    st.title("⚡ Algo Controls")
     trading_mode = st.toggle("🎮 Paper Trading", value=False)
     
     if 'smart_api' not in st.session_state: st.session_state['smart_api'] = None
@@ -59,8 +65,8 @@ with st.sidebar:
             st.divider()
             st.caption("OVERLAYS")
             show_ema = st.checkbox("EMA 9/50", value=True)
-            show_bb = st.checkbox("Bollinger Bands", value=False)
-            show_psar = st.checkbox("Parabolic SAR", value=False)
+            show_bb = st.checkbox("Bollinger Bands", value=True)
+            show_psar = st.checkbox("Parabolic SAR", value=True)
             show_supertrend = st.checkbox("Supertrend", value=True)
             show_scalp = st.checkbox("🔥 SCALP SIGNALS", value=True)
             
@@ -68,22 +74,24 @@ with st.sidebar:
             show_rsi = st.checkbox("RSI", value=True)
             show_macd = st.checkbox("MACD", value=True)
             
-            if st.button("Refresh", use_container_width=True): st.rerun()
+            if st.button("Refresh Chart", use_container_width=True): st.rerun()
     else:
         st.markdown('<div class="status-badge disconnected">● Disconnected</div>', unsafe_allow_html=True)
         st.stop()
 
-# --- DATA ---
+# --- DATA LOADING ---
 tf_map = {"3min": "THREE_MINUTE", "5min": "FIVE_MINUTE", "10min": "TEN_MINUTE", "15min": "FIFTEEN_MINUTE"}
 df = DataLoader.fetch_ohlcv(watchlist[asset], tf_map[interval])
 
 if df.empty: st.warning("Data Loading..."); st.stop()
 
-# Safety Try-Except Block
+# --- APPLY INDICATORS (WITH ERROR SHOWING) ---
 try:
     df = FeatureEngine.apply_indicators(df)
 except Exception as e:
-    st.warning(f"Indicator Error: {e}")
+    # This will show the real error on Cloud instead of hiding it
+    st.error(f"Indicator Error: {e}")
+    st.write("Hint: Make sure 'ta' is in requirements.txt")
 
 last = df.iloc[-1]
 rsi = last['rsi']
@@ -91,13 +99,14 @@ price = last['close']
 
 # --- SCALP SIGNAL ---
 scalp_signal = "NONE"
-if 'scalp_buy' in last and last['scalp_buy']: scalp_signal = "SCALP BUY 🚀"
-elif 'scalp_sell' in last and last['scalp_sell']: scalp_signal = "SCALP SELL 🔻"
+# Check if columns exist before accessing
+if 'scalp_buy' in df.columns and last['scalp_buy']: scalp_signal = "SCALP BUY 🚀"
+elif 'scalp_sell' in df.columns and last['scalp_sell']: scalp_signal = "SCALP SELL 🔻"
 
 # --- ALERT BAR ---
 col = "#00E676" if "BUY" in scalp_signal else "#FF1744" if "SELL" in scalp_signal else "#FF9800"
 msg = scalp_signal if scalp_signal != "NONE" else f"LTP: {price}"
-macd_val = round(last.get('macd_hist', 0), 2) # Safety get
+macd_val = round(last.get('macd_hist', 0), 2)
 
 st.markdown(f"""
     <div style="position: fixed; bottom: 10px; right: 10px; background: #1e222d; padding: 10px; border-radius: 8px; border-left: 4px solid {col}; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.5); z-index: 100; font-size: 14px;">
@@ -118,10 +127,9 @@ fig = make_subplots(
     row_heights=row_heights
 )
 
-# 1. CANDLESTICK
+# 1. PRICE & OVERLAYS
 fig.add_trace(go.Candlestick(x=display_df.index, open=display_df['open'], high=display_df['high'], low=display_df['low'], close=display_df['close'], name="Price", increasing_line_color='#089981', decreasing_line_color='#F23645'), row=1, col=1)
 
-# Indicators with Safety Checks
 if show_ema:
     if 'ema_9' in display_df: fig.add_trace(go.Scatter(x=display_df.index, y=display_df['ema_9'], line=dict(color='#2962FF', width=1), name="EMA 9"), row=1, col=1)
     if 'ema_50' in display_df: fig.add_trace(go.Scatter(x=display_df.index, y=display_df['ema_50'], line=dict(color='#FFEB3B', width=1.5), name="EMA 50"), row=1, col=1)
@@ -151,7 +159,7 @@ fig.add_trace(go.Bar(x=display_df.index, y=display_df['volume'], marker_color=vo
 fig.add_trace(go.Scatter(x=display_df.index, y=display_df['rsi'], line=dict(color='#B39DDB', width=1.5), name="RSI"), row=3, col=1)
 fig.add_hline(y=70, line_dash="dot", line_color="#F23645", row=3, col=1); fig.add_hline(y=30, line_dash="dot", line_color="#089981", row=3, col=1)
 
-# 4. MACD (FIXED ERROR HERE)
+# 4. MACD
 if show_macd and 'macd_hist' in display_df:
     hist_colors = ['#00E676' if h >= 0 else '#FF1744' for h in display_df['macd_hist']]
     fig.add_trace(go.Bar(x=display_df.index, y=display_df['macd_hist'], marker_color=hist_colors, name="Hist"), row=4, col=1)
