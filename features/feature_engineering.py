@@ -41,54 +41,47 @@ class FeatureEngine:
     def apply_indicators(df):
         if df.empty: return df
         
-        # --- BASIC INDICATORS ---
+        # 1. EMAs (આ લાઈન ખૂટતી હતી એટલે એરર આવતી હતી)
         df['ema_9'] = EMAIndicator(close=df['close'], window=9).ema_indicator()
-        df['ema_50'] = EMAIndicator(close=df['close'], window=50).ema_indicator() # Scalp Pro uses 50 EMA
+        df['ema_50'] = EMAIndicator(close=df['close'], window=50).ema_indicator() 
         
+        # 2. RSI & Stoch RSI
         df['rsi'] = RSIIndicator(close=df['close'], window=14).rsi()
-        
-        # Stoch RSI for Scalp Pro
         stoch = StochRSIIndicator(close=df['close'], window=14, smooth1=3, smooth2=3)
         df['stoch_k'] = stoch.stochrsi_k()
         
-        # VWAP
+        # 3. VWAP
         try:
             vwap = VolumeWeightedAveragePrice(high=df['high'], low=df['low'], close=df['close'], volume=df['volume'])
             df['vwap'] = vwap.volume_weighted_average_price()
         except:
             df['vwap'] = df['close']
         
-        # Supertrend
+        # 4. Supertrend
         df['in_uptrend'] = FeatureEngine.calculate_supertrend(df)
         df['supertrend'] = np.where(df['in_uptrend'], df['low'] * 0.999, df['high'] * 1.001)
 
-        # --- NEW INDICATORS (MACD, BB, PSAR) ---
-        
-        # 1. MACD
+        # 5. MACD
         macd = MACD(close=df['close'])
         df['macd'] = macd.macd()
         df['macd_signal'] = macd.macd_signal()
         df['macd_hist'] = macd.macd_diff()
 
-        # 2. Bollinger Bands
+        # 6. Bollinger Bands
         bb = BollingerBands(close=df['close'], window=20, window_dev=2)
         df['bb_upper'] = bb.bollinger_hband()
         df['bb_lower'] = bb.bollinger_lband()
 
-        # 3. Parabolic SAR
+        # 7. Parabolic SAR
         psar = PSARIndicator(df['high'], df['low'], df['close'], step=0.02, max_step=0.2)
         df['psar'] = psar.psar()
 
-        # --- SCALP PRO SIGNALS (This fixes your error) ---
-        # Buy: Price > EMA 50 AND Supertrend Green AND Stoch RSI oversold
+        # 8. SCALP PRO SIGNALS
         df['scalp_buy'] = (df['close'] > df['ema_50']) & (df['in_uptrend']) & (df['stoch_k'] < 0.25)
-        
-        # Sell: Price < EMA 50 AND Supertrend Red AND Stoch RSI overbought
         df['scalp_sell'] = (df['close'] < df['ema_50']) & (~df['in_uptrend']) & (df['stoch_k'] > 0.75)
 
         return df.dropna()
 
     @staticmethod
     def detect_patterns(df):
-        # Placeholder for patterns logic
         return []

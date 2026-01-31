@@ -88,7 +88,6 @@ rsi = last['rsi']
 price = last['close']
 
 # --- SCALP SIGNAL ---
-# Error happens here if 'scalp_buy' is missing in FeatureEngine
 scalp_signal = "NONE"
 if 'scalp_buy' in last and last['scalp_buy']: scalp_signal = "SCALP BUY 🚀"
 elif 'scalp_sell' in last and last['scalp_sell']: scalp_signal = "SCALP SELL 🔻"
@@ -103,7 +102,7 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-# --- CHART LAYOUT (4 ROWS) ---
+# --- CHART LAYOUT ---
 display_df = df.tail(100)
 row_heights = [0.55, 0.15, 0.15, 0.15] if show_macd else [0.7, 0.15, 0.15]
 
@@ -115,24 +114,31 @@ fig = make_subplots(
     row_heights=row_heights
 )
 
-# 1. CANDLESTICK & OVERLAYS
+# 1. CANDLESTICK
 fig.add_trace(go.Candlestick(x=display_df.index, open=display_df['open'], high=display_df['high'], low=display_df['low'], close=display_df['close'], name="Price", increasing_line_color='#089981', decreasing_line_color='#F23645'), row=1, col=1)
 
+# EMAs (With Safety Check)
 if show_ema:
-    fig.add_trace(go.Scatter(x=display_df.index, y=display_df['ema_9'], line=dict(color='#2962FF', width=1), name="EMA 9"), row=1, col=1)
-    fig.add_trace(go.Scatter(x=display_df.index, y=display_df['ema_50'], line=dict(color='#FFEB3B', width=1.5), name="EMA 50"), row=1, col=1)
+    if 'ema_9' in display_df:
+        fig.add_trace(go.Scatter(x=display_df.index, y=display_df['ema_9'], line=dict(color='#2962FF', width=1), name="EMA 9"), row=1, col=1)
+    if 'ema_50' in display_df:
+        fig.add_trace(go.Scatter(x=display_df.index, y=display_df['ema_50'], line=dict(color='#FFEB3B', width=1.5), name="EMA 50"), row=1, col=1)
 
-if show_bb:
+# Bollinger Bands (With Safety Check)
+if show_bb and 'bb_upper' in display_df:
     fig.add_trace(go.Scatter(x=display_df.index, y=display_df['bb_upper'], line=dict(color='rgba(255, 255, 255, 0.3)', width=1), name="BB Up"), row=1, col=1)
     fig.add_trace(go.Scatter(x=display_df.index, y=display_df['bb_lower'], line=dict(color='rgba(255, 255, 255, 0.3)', width=1), fill='tonexty', fillcolor='rgba(255, 255, 255, 0.05)', name="BB Low"), row=1, col=1)
 
-if show_psar:
+# PSAR
+if show_psar and 'psar' in display_df:
     fig.add_trace(go.Scatter(x=display_df.index, y=display_df['psar'], mode='markers', marker=dict(color='white', size=2), name="PSAR"), row=1, col=1)
 
-if show_supertrend:
+# Supertrend
+if show_supertrend and 'supertrend' in display_df:
     st_colors = ['#00E676' if x else '#FF1744' for x in display_df['in_uptrend']]
     fig.add_trace(go.Scatter(x=display_df.index, y=display_df['supertrend'], mode='markers', marker=dict(color=st_colors, size=2), name="ST"), row=1, col=1)
 
+# Scalp Signals
 if show_scalp and 'scalp_buy' in display_df:
     buys = display_df[display_df['scalp_buy']]
     if not buys.empty: fig.add_trace(go.Scatter(x=buys.index, y=buys['low']*0.998, mode='markers', marker=dict(symbol='triangle-up', size=10, color='#00E676'), name="Buy"), row=1, col=1)
@@ -147,7 +153,7 @@ fig.add_trace(go.Bar(x=display_df.index, y=display_df['volume'], marker_color=vo
 fig.add_trace(go.Scatter(x=display_df.index, y=display_df['rsi'], line=dict(color='#B39DDB', width=1.5), name="RSI"), row=3, col=1)
 fig.add_hline(y=70, line_dash="dot", line_color="#F23645", row=3, col=1); fig.add_hline(y=30, line_dash="dot", line_color="#089981", row=3, col=1)
 
-# 4. MACD (New Row)
+# 4. MACD
 if show_macd and 'macd' in display_df:
     hist_colors = ['#00E676' if h >= 0 else '#FF1744' for h in display_df['macd_hist']]
     fig.add_trace(go.Bar(x=display_df.index, y=display_df['macd_hist'], marker_color=hist_colors, name="Hist"), row=4, col=1)
@@ -174,7 +180,7 @@ if trading_mode:
                 st.session_state['balance'] -= price*qty
                 st.session_state['positions'][asset] = {'qty': qty, 'avg': price}
                 st.rerun()
-        if c_sell.button("SELL 🔻", use_container_width=True): st.rerun() 
+        if c_sell.button("SELL 🔻", use_container_width=True): st.rerun()
     with c2:
         if asset in st.session_state['positions']:
             pos = st.session_state['positions'][asset]
