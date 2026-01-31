@@ -59,14 +59,14 @@ with st.sidebar:
             st.divider()
             st.caption("OVERLAYS")
             show_ema = st.checkbox("EMA 9/50", value=True)
-            show_bb = st.checkbox("Bollinger Bands", value=False) # New
-            show_psar = st.checkbox("Parabolic SAR", value=False) # New
+            show_bb = st.checkbox("Bollinger Bands", value=False)
+            show_psar = st.checkbox("Parabolic SAR", value=False)
             show_supertrend = st.checkbox("Supertrend", value=True)
             show_scalp = st.checkbox("🔥 SCALP SIGNALS", value=True)
             
             st.caption("OSCILLATORS")
             show_rsi = st.checkbox("RSI", value=True)
-            show_macd = st.checkbox("MACD", value=True) # New
+            show_macd = st.checkbox("MACD", value=True)
             
             if st.button("Refresh", use_container_width=True): st.rerun()
     else:
@@ -88,9 +88,10 @@ rsi = last['rsi']
 price = last['close']
 
 # --- SCALP SIGNAL ---
+# Error happens here if 'scalp_buy' is missing in FeatureEngine
 scalp_signal = "NONE"
-if last['scalp_buy']: scalp_signal = "SCALP BUY 🚀"
-elif last['scalp_sell']: scalp_signal = "SCALP SELL 🔻"
+if 'scalp_buy' in last and last['scalp_buy']: scalp_signal = "SCALP BUY 🚀"
+elif 'scalp_sell' in last and last['scalp_sell']: scalp_signal = "SCALP SELL 🔻"
 
 # --- ALERT BAR ---
 col = "#00E676" if "BUY" in scalp_signal else "#FF1744" if "SELL" in scalp_signal else "#FF9800"
@@ -98,15 +99,13 @@ msg = scalp_signal if scalp_signal != "NONE" else f"LTP: {price}"
 st.markdown(f"""
     <div style="position: fixed; bottom: 10px; right: 10px; background: #1e222d; padding: 10px; border-radius: 8px; border-left: 4px solid {col}; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.5); z-index: 100; font-size: 14px;">
         <div style="font-weight:bold;">{msg}</div>
-        <div style="font-size: 10px; opacity: 0.8;">MACD: {round(last['macd_hist'], 2)}</div>
+        <div style="font-size: 10px; opacity: 0.8;">MACD: {round(last.get('macd_hist', 0), 2)}</div>
     </div>
 """, unsafe_allow_html=True)
 
 # --- CHART LAYOUT (4 ROWS) ---
-# Row 1: Price (70%), Row 2: Vol (10%), Row 3: RSI (10%), Row 4: MACD (10%)
 display_df = df.tail(100)
 row_heights = [0.55, 0.15, 0.15, 0.15] if show_macd else [0.7, 0.15, 0.15]
-specs = [[{"secondary_y": False}], [{"secondary_y": False}], [{"secondary_y": False}], [{"secondary_y": False}]] if show_macd else [[{"secondary_y": False}], [{"secondary_y": False}], [{"secondary_y": False}]]
 
 fig = make_subplots(
     rows=4 if show_macd else 3, 
@@ -134,7 +133,7 @@ if show_supertrend:
     st_colors = ['#00E676' if x else '#FF1744' for x in display_df['in_uptrend']]
     fig.add_trace(go.Scatter(x=display_df.index, y=display_df['supertrend'], mode='markers', marker=dict(color=st_colors, size=2), name="ST"), row=1, col=1)
 
-if show_scalp:
+if show_scalp and 'scalp_buy' in display_df:
     buys = display_df[display_df['scalp_buy']]
     if not buys.empty: fig.add_trace(go.Scatter(x=buys.index, y=buys['low']*0.998, mode='markers', marker=dict(symbol='triangle-up', size=10, color='#00E676'), name="Buy"), row=1, col=1)
     sells = display_df[display_df['scalp_sell']]
@@ -149,8 +148,7 @@ fig.add_trace(go.Scatter(x=display_df.index, y=display_df['rsi'], line=dict(colo
 fig.add_hline(y=70, line_dash="dot", line_color="#F23645", row=3, col=1); fig.add_hline(y=30, line_dash="dot", line_color="#089981", row=3, col=1)
 
 # 4. MACD (New Row)
-if show_macd:
-    # Histogram colors
+if show_macd and 'macd' in display_df:
     hist_colors = ['#00E676' if h >= 0 else '#FF1744' for h in display_df['macd_hist']]
     fig.add_trace(go.Bar(x=display_df.index, y=display_df['macd_hist'], marker_color=hist_colors, name="Hist"), row=4, col=1)
     fig.add_trace(go.Scatter(x=display_df.index, y=display_df['macd'], line=dict(color='#2962FF', width=1), name="MACD"), row=4, col=1)
@@ -174,9 +172,9 @@ if trading_mode:
         if c_buy.button("BUY 🟢", use_container_width=True):
             if price*qty <= st.session_state['balance']:
                 st.session_state['balance'] -= price*qty
-                st.session_state['positions'][asset] = {'qty': qty, 'avg': price} # Simplified
+                st.session_state['positions'][asset] = {'qty': qty, 'avg': price}
                 st.rerun()
-        if c_sell.button("SELL 🔻", use_container_width=True): st.rerun() # Sell logic placeholder
+        if c_sell.button("SELL 🔻", use_container_width=True): st.rerun() 
     with c2:
         if asset in st.session_state['positions']:
             pos = st.session_state['positions'][asset]
