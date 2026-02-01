@@ -7,7 +7,7 @@ class PricePredictor:
             
         last_row = df.iloc[-1]
         
-        # Logic Variables
+        
         ema_9 = last_row['ema_9']
         ema_50 = last_row['ema_50']
         rsi = last_row['rsi']
@@ -16,17 +16,17 @@ class PricePredictor:
         score = 0
         direction = "NEUTRAL"
         
-        # --- BUY LOGIC ---
-        if ema_9 > ema_50: score += 1      # Golden Cross
-        if rsi > 40 and rsi < 70: score += 1 # Healthy Momentum
-        if close > last_row['open']: score += 1 # Green Candle
         
-        # --- SELL LOGIC ---
-        if ema_9 < ema_50: score -= 1      # Death Cross
-        if rsi > 70: score -= 1            # Overbought
-        if close < last_row['open']: score -= 1 # Red Candle
+        if ema_9 > ema_50: score += 1      
+        if rsi > 40 and rsi < 70: score += 1 
+        if close > last_row['open']: score += 1 
         
-        # Decision
+        
+        if ema_9 < ema_50: score -= 1      
+        if rsi > 70: score -= 1            
+        if close < last_row['open']: score -= 1 
+        
+        
         if score >= 2:
             direction = "UP"
             confidence = 0.85

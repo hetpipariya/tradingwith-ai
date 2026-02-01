@@ -8,12 +8,12 @@ import time
 class DataLoader:
     @staticmethod
     def get_session():
-        # જો લોગિન હોય તો ફરી ન કરો
+        
         if 'smart_api' in st.session_state and st.session_state['smart_api']:
             return st.session_state['smart_api']
 
         try:
-            # Secrets માંથી ડેટા લો
+            
             api_key = st.secrets.get("TRADING_API_KEY") or st.secrets.get("API_KEY")
             client_id = st.secrets.get("CLIENT_ID")
             pwd = st.secrets.get("TRADING_PWD") or st.secrets.get("PASSWORD")
@@ -46,7 +46,7 @@ class DataLoader:
         from_date = (datetime.now() - timedelta(days=5)).strftime("%Y-%m-%d %H:%M")
         
         try:
-            time.sleep(0.1) # Rate Limit Safety
+            time.sleep(0.1) 
             data = api.getCandleData({
                 "exchange": "NSE", 
                 "symboltoken": str(symbol_token),

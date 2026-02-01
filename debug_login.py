@@ -4,16 +4,16 @@ import pyotp
 import socket
 import uuid
 
-# --- CONFIGURATION ---
+
 api_key = "CWBI5fnF"
 client_code = "AACB794689"
 password = "7310"
 totp_secret = "ZJH6GT6X64G7K5SJFK42OO73JA"
 
-# 1. Automatic TOTP generate karo
+
 totp = pyotp.TOTP(totp_secret).now()
 
-# 2. Local IP ane MAC Address automatic melvo (400 error thi bachva mate)
+
 client_local_ip = socket.gethostbyname(socket.gethostname())
 client_public_ip = requests.get('https://api.ipify.org').text
 mac_address = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0, 8*6, 8)][::-1])
@@ -38,7 +38,7 @@ headers = {
 }
 
 try:
-    # data=json.dumps(payload) vaparvu jaruri chhe
+    
     response = requests.post(url, data=json.dumps(payload), headers=headers)
     
     print(f"Status Code: {response.status_code}")

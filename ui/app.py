@@ -7,7 +7,7 @@ import os
 import requests
 import time
 
-# --- PATH SETUP ---
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
 sys.path.append(root_dir)
@@ -21,19 +21,19 @@ except ImportError as e:
 
 st.set_page_config(layout="wide", page_title="Pro Trader", page_icon="📈")
 
-# --- SIDEBAR: CACHE CLEAR BUTTON (FOR BUG FIX) ---
+
 with st.sidebar:
     st.title("⚡ Algo Controls")
     if st.button("🧹 Clear Cache (Fix Bugs)", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
 
-# --- STATE ---
+
 if 'balance' not in st.session_state: st.session_state['balance'] = 10000.0
 if 'positions' not in st.session_state: st.session_state['positions'] = {}
 if 'trade_log' not in st.session_state: st.session_state['trade_log'] = []
 
-# --- CSS ---
+
 st.markdown("""
     <style>
     .stApp { background-color: #131722; }
@@ -46,7 +46,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- SIDEBAR CONTROLS ---
+
 with st.sidebar:
     trading_mode = st.toggle("🎮 Paper Trading", value=False)
     
@@ -79,17 +79,17 @@ with st.sidebar:
         st.markdown('<div class="status-badge disconnected">● Disconnected</div>', unsafe_allow_html=True)
         st.stop()
 
-# --- DATA LOADING ---
+
 tf_map = {"3min": "THREE_MINUTE", "5min": "FIVE_MINUTE", "10min": "TEN_MINUTE", "15min": "FIFTEEN_MINUTE"}
 df = DataLoader.fetch_ohlcv(watchlist[asset], tf_map[interval])
 
 if df.empty: st.warning("Data Loading..."); st.stop()
 
-# --- APPLY INDICATORS (WITH ERROR SHOWING) ---
+
 try:
     df = FeatureEngine.apply_indicators(df)
 except Exception as e:
-    # This will show the real error on Cloud instead of hiding it
+    
     st.error(f"Indicator Error: {e}")
     st.write("Hint: Make sure 'ta' is in requirements.txt")
 
@@ -97,13 +97,13 @@ last = df.iloc[-1]
 rsi = last['rsi']
 price = last['close']
 
-# --- SCALP SIGNAL ---
+
 scalp_signal = "NONE"
-# Check if columns exist before accessing
+
 if 'scalp_buy' in df.columns and last['scalp_buy']: scalp_signal = "SCALP BUY 🚀"
 elif 'scalp_sell' in df.columns and last['scalp_sell']: scalp_signal = "SCALP SELL 🔻"
 
-# --- ALERT BAR ---
+
 col = "#00E676" if "BUY" in scalp_signal else "#FF1744" if "SELL" in scalp_signal else "#FF9800"
 msg = scalp_signal if scalp_signal != "NONE" else f"LTP: {price}"
 macd_val = round(last.get('macd_hist', 0), 2)
@@ -115,7 +115,7 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-# --- CHART LAYOUT ---
+
 display_df = df.tail(100)
 row_heights = [0.55, 0.15, 0.15, 0.15] if show_macd else [0.7, 0.15, 0.15]
 
@@ -127,7 +127,7 @@ fig = make_subplots(
     row_heights=row_heights
 )
 
-# 1. PRICE & OVERLAYS
+
 fig.add_trace(go.Candlestick(x=display_df.index, open=display_df['open'], high=display_df['high'], low=display_df['low'], close=display_df['close'], name="Price", increasing_line_color='#089981', decreasing_line_color='#F23645'), row=1, col=1)
 
 if show_ema:
@@ -151,29 +151,29 @@ if show_scalp and 'scalp_buy' in display_df:
     sells = display_df[display_df['scalp_sell']]
     if not sells.empty: fig.add_trace(go.Scatter(x=sells.index, y=sells['high']*1.002, mode='markers', marker=dict(symbol='triangle-down', size=10, color='#FF1744'), name="Sell"), row=1, col=1)
 
-# 2. VOLUME
+
 vol_colors = ['rgba(8, 153, 129, 0.5)' if c >= o else 'rgba(242, 54, 69, 0.5)' for o, c in zip(display_df['open'], display_df['close'])]
 fig.add_trace(go.Bar(x=display_df.index, y=display_df['volume'], marker_color=vol_colors, name="Vol"), row=2, col=1)
 
-# 3. RSI
+
 fig.add_trace(go.Scatter(x=display_df.index, y=display_df['rsi'], line=dict(color='#B39DDB', width=1.5), name="RSI"), row=3, col=1)
 fig.add_hline(y=70, line_dash="dot", line_color="#F23645", row=3, col=1); fig.add_hline(y=30, line_dash="dot", line_color="#089981", row=3, col=1)
 
-# 4. MACD
+
 if show_macd and 'macd_hist' in display_df:
     hist_colors = ['#00E676' if h >= 0 else '#FF1744' for h in display_df['macd_hist']]
     fig.add_trace(go.Bar(x=display_df.index, y=display_df['macd_hist'], marker_color=hist_colors, name="Hist"), row=4, col=1)
     fig.add_trace(go.Scatter(x=display_df.index, y=display_df['macd'], line=dict(color='#2962FF', width=1), name="MACD"), row=4, col=1)
     fig.add_trace(go.Scatter(x=display_df.index, y=display_df['macd_signal'], line=dict(color='#FF9800', width=1), name="Signal"), row=4, col=1)
 
-# Layout
+
 fig.update_layout(height=700, template="plotly_dark", paper_bgcolor="#131722", plot_bgcolor="#131722", margin=dict(l=0, r=45, t=10, b=0), hovermode='x unified', dragmode='pan', showlegend=False, xaxis=dict(rangeslider=dict(visible=False), type="category"))
 fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.05)', showline=False, fixedrange=False)
 fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.05)', side='right', fixedrange=False)
 
 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'scrollZoom': True})
 
-# --- PAPER TRADING UI ---
+
 if trading_mode:
     st.markdown("---")
     c1, c2 = st.columns([1, 1])

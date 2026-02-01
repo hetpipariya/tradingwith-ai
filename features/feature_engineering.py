@@ -41,42 +41,42 @@ class FeatureEngine:
     def apply_indicators(df):
         if df.empty: return df
         
-        # 1. EMAs
+        
         df['ema_9'] = EMAIndicator(close=df['close'], window=9).ema_indicator()
         df['ema_50'] = EMAIndicator(close=df['close'], window=50).ema_indicator() 
         
-        # 2. RSI & Stoch
+        
         df['rsi'] = RSIIndicator(close=df['close'], window=14).rsi()
         stoch = StochRSIIndicator(close=df['close'], window=14, smooth1=3, smooth2=3)
         df['stoch_k'] = stoch.stochrsi_k()
         
-        # 3. VWAP
+        
         try:
             vwap = VolumeWeightedAveragePrice(high=df['high'], low=df['low'], close=df['close'], volume=df['volume'])
             df['vwap'] = vwap.volume_weighted_average_price()
         except:
             df['vwap'] = df['close']
         
-        # 4. Supertrend
+        
         df['in_uptrend'] = FeatureEngine.calculate_supertrend(df)
         df['supertrend'] = np.where(df['in_uptrend'], df['low'] * 0.999, df['high'] * 1.001)
 
-        # 5. MACD (આ લાઈનો ખાસ ચેક કરજો)
+        
         macd = MACD(close=df['close'])
         df['macd'] = macd.macd()
         df['macd_signal'] = macd.macd_signal()
-        df['macd_hist'] = macd.macd_diff()  # આના લીધે એરર આવતી હતી
+        df['macd_hist'] = macd.macd_diff()  
 
-        # 6. Bollinger Bands
+        
         bb = BollingerBands(close=df['close'], window=20, window_dev=2)
         df['bb_upper'] = bb.bollinger_hband()
         df['bb_lower'] = bb.bollinger_lband()
 
-        # 7. PSAR
+        
         psar = PSARIndicator(df['high'], df['low'], df['close'], step=0.02, max_step=0.2)
         df['psar'] = psar.psar()
 
-        # 8. Scalp Signals
+        
         df['scalp_buy'] = (df['close'] > df['ema_50']) & (df['in_uptrend']) & (df['stoch_k'] < 0.25)
         df['scalp_sell'] = (df['close'] < df['ema_50']) & (~df['in_uptrend']) & (df['stoch_k'] > 0.75)
 
