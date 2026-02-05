@@ -25,13 +25,4 @@ This project features an interactive **Streamlit Dashboard** for real-time data 
 * **Technical Analysis:** TA-Lib / Pandas-TA
 * **Visualization:** Plotly / Matplotlib
 
----
 
-## ⚙️ Installation
-
-To run this project locally, follow these steps:
-
-1. **Clone the Repository:**
-   ```bash
-   git clone [https://github.com/hetpipariya/tradingwith-ai.git](https://github.com/hetpipariya/tradingwith-ai.git)
-   cd tradingwith-ai
